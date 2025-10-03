@@ -127,8 +127,318 @@
     };
 
     // --- 2. DEFAULT DATA & PROFILES ---
-    const defaultBotProfile = {"profileName":"Original GameBot Logic","initialState":"S_IDLE","states":[{"key":"S_IDLE","label":"Idle"},{"key":"S_BAGFULL","label":"Bag Full"},{"key":"S_SELLCONSIGNMENT","label":"Selling"},{"key":"S_NAVIGATE","label":"Navigating"},{"key":"S_STARTDUNGEON","label":"Start Dungeon"},{"key":"S_ATTACK","label":"Attacking"},{"key":"S_RECOVER","label":"Recovering"},{"key":"S_BUY_POTIONS","label":"Buy Potions"},{"key":"S_MARKET_WAIT","label":"Market Wait"},{"key":"S_EXIT","label":"Terminated"}],"triggers":[{"key":"isHpMpLow","label":"HP/MP ↓","color":"red"},{"key":"isPotionsLow","label":"Potions ↓","color":"red"},{"key":"isBagFull","label":"Bag Full","color":"orange"},{"key":"isSellableExist","label":"Sellable?","color":"yellow"},{"key":"isConsignmentGoldToCollect","label":"Gold Ready","color":"yellow"},{"key":"isAffordable","label":"Can Afford?","color":"green"},{"key":"isDungeonReady","label":"Dungeon Goal","color":"purple"},{"key":"isGrindingReady","label":"Grind Goal","color":"purple"},{"key":"isMonsterDefeated","label":"Defeated","color":"gray"},{"key":"actionRecoverComplete","label":"Recovered","color":"teal"},{"key":"actionSellComplete","label":"Sold/Posted","color":"teal"},{"key":"actionBuyComplete","label":"Pots Bought","color":"teal"},{"key":"actionDungeonStartComplete","label":"Dungeon Start","color":"teal"},{"key":"arrivedAtConsignment","label":"Arrived NPC","color":"cyan"},{"key":"arrivedAtDungeon","label":"Arrived Dungeon","color":"cyan"},{"key":"arrivedAtAttack","label":"Arrived Attack","color":"cyan"},{"key":"isSmallStacksToSell","label":"Small Stacks","color":"gray"},{"key":"isPotionsAvailable","label":"Pots Avail?","color":"gray"},{"key":"isDungeonComplete","label":"Dungeon End","color":"gray"}],"logic":{"S_IDLE":[{"if":"bot.previous_goal_location !== 'None'","actions":["exec:setDestinationFromPreviousGoal","exec:clearPreviousGoal"],"transitionTo":"S_NAVIGATE"},{"if":"isHpMpLow","transitionTo":"S_RECOVER"},{"if":"isPotionsLow && (isGrindingReady || isDungeonReady)","actions":["exec:setPreviousGoal","exec:setDestination('Consignment NPC')"],"transitionTo":"S_NAVIGATE"},{"if":"isBagFull","actions":["exec:setPreviousGoal"],"transitionTo":"S_BAGFULL"},{"if":"isDungeonReady && bot.navigation_destination !== 'Shadowmere Dungeon'","actions":["exec:setDestination('Shadowmere Dungeon')"],"transitionTo":"S_NAVIGATE"},{"if":"isDungeonReady","transitionTo":"S_STARTDUNGEON"},{"if":"isGrindingReady && bot.navigation_destination !== 'Grinding Field'","actions":["exec:setDestination('Grinding Field')"],"transitionTo":"S_NAVIGATE"},{"if":"isGrindingReady","transitionTo":"S_ATTACK"},{"if":"bot.navigation_destination !== 'None'","transitionTo":"S_NAVIGATE"},{"if":"true","actions":["log:Waiting for conditions."],"transitionTo":"S_IDLE"}],"S_RECOVER":[{"if":"bot.inDungeonInstance && isDungeonComplete","actions":["exec:setDungeonStatus(false)","exec:resetTrigger('isDungeonComplete')"],"transitionTo":"S_IDLE"},{"if":"actionRecoverComplete","actions":["exec:resetTrigger('isHpMpLow')","exec:resetTrigger('actionRecoverComplete')"],"transitionTo":"S_IDLE"},{"if":"isPotionsLow && !bot.inDungeonInstance","actions":["exec:setPreviousGoal","exec:setDestination('Consignment NPC')"],"transitionTo":"S_NAVIGATE"},{"if":"true","actions":["log:Using potions/abilities to recover."],"transitionTo":"S_RECOVER"}],"S_BAGFULL":[{"if":"isSellableExist || isSmallStacksToSell","actions":["log:Clearing junk resources.","exec:resetTrigger('isBagFull')","exec:setDestination('Consignment NPC')"],"transitionTo":"S_NAVIGATE"},{"if":"true","actions":["log:Clearing junk resources.","exec:resetTrigger('isBagFull')"],"transitionTo":"S_IDLE"}],"S_SELLCONSIGNMENT":[{"if":"actionSellComplete","actions":["exec:resetTrigger('actionSellComplete')","exec:clearDestination"],"transitionTo":"S_SELLCONSIGNMENT_DECIDE"},{"if":"true","actions":["exec:collectGold","exec:postItems(false)"],"transitionTo":"S_SELLCONSIGNMENT"}],"S_SELLCONSIGNMENT_DECIDE":[{"if":"isPotionsLow","transitionTo":"S_BUY_POTIONS"},{"if":"true","transitionTo":"S_IDLE"}],"S_NAVIGATE":[{"if":"isHpMpLow && bot.navigation_destination !== 'Consignment NPC'","transitionTo":"S_RECOVER"},{"if":"bot.navigation_destination === 'Consignment NPC' && arrivedAtConsignment","actions":["exec:resetTrigger('arrivedAtConsignment')"],"transitionTo":"S_NAVIGATE_DECIDE_AT_NPC"},{"if":"bot.navigation_destination === 'Shadowmere Dungeon' && arrivedAtDungeon","actions":["exec:resetTrigger('arrivedAtDungeon')"],"transitionTo":"S_STARTDUNGEON"},{"if":"bot.navigation_destination === 'Grinding Field' && arrivedAtAttack","actions":["exec:resetTrigger('arrivedAtAttack')"],"transitionTo":"S_ATTACK"},{"if":"true","actions":["exec:move"],"transitionTo":"S_NAVIGATE"}],"S_NAVIGATE_DECIDE_AT_NPC":[{"if":"isPotionsLow","transitionTo":"S_BUY_POTIONS"},{"if":"true","transitionTo":"S_SELLCONSIGNMENT"}],"S_BUY_POTIONS":[{"if":"actionBuyComplete","actions":["exec:resetTrigger('actionBuyComplete')","exec:clearDestination"],"transitionTo":"S_IDLE"},{"if":"!isPotionsAvailable || !isAffordable","actions":["log:Checking market for best potion price."],"transitionTo":"S_MARKET_WAIT"},{"if":"true","actions":["log:Checking market for best potion price.","log:Buying 1 stack of potions.","exec:resetTrigger('isPotionsLow')"],"transitionTo":"S_BUY_POTIONS"}],"S_MARKET_WAIT":[{"if":"isPotionsLow && !isConsignmentGoldToCollect && !isSmallStacksToSell && !isAffordable","transitionTo":"S_EXIT"},{"if":"isConsignmentGoldToCollect","actions":["exec:collectGold"],"transitionTo":"S_MARKET_WAIT_DECIDE"},{"if":"isSmallStacksToSell","actions":["exec:postItems(true)"],"transitionTo":"S_MARKET_WAIT"},{"if":"true","actions":["log:Market Wait Active: Waiting for sales."],"transitionTo":"S_MARKET_WAIT"}],"S_MARKET_WAIT_DECIDE":[{"if":"isPotionsLow","transitionTo":"S_BUY_POTIONS"},{"if":"true","transitionTo":"S_IDLE"}],"S_STARTDUNGEON":[{"if":"actionDungeonStartComplete","actions":["exec:resetTrigger('actionDungeonStartComplete')","exec:clearDestination"],"transitionTo":"S_ATTACK"},{"if":"isHpMpLow","transitionTo":"S_RECOVER"},{"if":"true","actions":["log:Entering dungeon instance.","exec:setDungeonStatus(true)"],"transitionTo":"S_STARTDUNGEON"}],"S_ATTACK":[{"if":"bot.inDungeonInstance && isDungeonComplete","actions":["exec:setDungeonStatus(false)","exec:resetTrigger('isDungeonComplete')"],"transitionTo":"S_IDLE"},{"if":"isHpMpLow","transitionTo":"S_RECOVER"},{"if":"isMonsterDefeated","actions":["exec:resetTrigger('isMonsterDefeated')"],"transitionTo":"S_ATTACK_DECIDE"},{"if":"true","actions":["log:Executing combat rotation."],"transitionTo":"S_ATTACK"}],"S_ATTACK_DECIDE":[{"if":"bot.inDungeonInstance","transitionTo":"S_ATTACK"},{"if":"true","transitionTo":"S_IDLE"}],"S_EXIT":[{"if":"true","actions":["log:BOT TERMINATED: Broke and unsafe to continue."],"transitionTo":"S_EXIT"}]}};
-    const defaultScenarios = {"scenarios": [{"name": "1. Full Grinding Loop", "description": "Finish Kill before Bag interrupt.", "initialState": "S_IDLE", "initialDungeon": false, "initialConditions": {"isGrindingReady": true, "isPotionsLow": false, "isAffordable": true, "isSellableExist": false}, "script": [{"cycle": 4, "set": {"arrivedAtAttack": true}}, {"cycle": 6, "set": {"isMonsterDefeated": true}}, {"cycle": 8, "set": {"isHpMpLow": true, "isMonsterDefeated": false}}, {"cycle": 11, "set": {"actionRecoverComplete": true}}, {"cycle": 13, "set": {"isMonsterDefeated": false, "isBagFull": true, "isSellableExist": true}}, {"cycle": 15, "set": {"isMonsterDefeated": true}}, {"cycle": 20, "set": {"arrivedAtConsignment": true}}, {"cycle": 23, "set": {"actionSellComplete": true}}, {"cycle": 27, "set": {"arrivedAtAttack": true}}, {"cycle": 28, "log": "*** SCENARIO COMPLETE: Finish-Kill validated. ***"}]}, {"name": "2. Goal Save & Resupply Retreat", "description": "PotionsLow -> Goal Save -> Buy Potions -> Goal Resume.", "initialState": "S_IDLE", "initialDungeon": false, "initialConditions": {"isDungeonReady": true, "isPotionsLow": true, "isAffordable": true, "isPotionsAvailable": true, "arrivedAtDungeon": false}, "script": [{"cycle": 4, "set": {"arrivedAtConsignment": true}}, {"cycle": 7, "set": {"actionBuyComplete": true}}, {"cycle": 11, "set": {"arrivedAtDungeon": true}}, {"cycle": 14, "set": {"actionDungeonStartComplete": true}}, {"cycle": 15, "log": "*** SCENARIO COMPLETE: Proactive retreat validated. ***"}]}, {"name": "3. Market Crisis & S_EXIT", "description": "Broke -> MARKET_WAIT -> Sell -> Fail Recovery -> Final EXIT.", "initialState": "S_IDLE", "initialDungeon": false, "initialConditions": {"isGrindingReady": true, "isPotionsLow": true, "isAffordable": false, "isPotionsAvailable": true, "isSmallStacksToSell": true}, "script": [{"cycle": 4, "set": {"arrivedAtConsignment": true}}, {"cycle": 7, "set": {"isConsignmentGoldToCollect": true}}, {"cycle": 10, "set": {"actionBuyComplete": true}}, {"cycle": 14, "set": {"arrivedAtAttack": true}}, {"cycle": 15, "set": {"isHpMpLow": true}}, {"cycle": 17, "set": {"isPotionsLow": true, "actionRecoverComplete": false}}, {"cycle": 20, "set": {"arrivedAtConsignment": true}}, {"cycle": 22, "set": {"isConsignmentGoldToCollect": false, "isSmallStacksToSell": false, "isAffordable": false}}, {"cycle": 24, "log": "*** SCENARIO COMPLETE: Absolute failure (S_EXIT) validated. ***"}]}]};
+    const defaultBotProfile = {
+      "profileName": "Original GameBot Logic",
+      "initialState": "S_IDLE",
+      "states": [
+        { "key": "S_IDLE", "label": "Idle" },
+        { "key": "S_BAGFULL", "label": "Bag Full" },
+        { "key": "S_SELLCONSIGNMENT", "label": "Selling" },
+        { "key": "S_NAVIGATE", "label": "Navigating" },
+        { "key": "S_STARTDUNGEON", "label": "Start Dungeon" },
+        { "key": "S_ATTACK", "label": "Attacking" },
+        { "key": "S_RECOVER", "label": "Recovering" },
+        { "key": "S_BUY_POTIONS", "label": "Buy Potions" },
+        { "key": "S_MARKET_WAIT", "label": "Market Wait" },
+        { "key": "S_EXIT", "label": "Terminated" }
+      ],
+      "triggers": [
+        { "key": "isHpMpLow", "label": "HP/MP ↓", "color": "red" },
+        { "key": "isPotionsLow", "label": "Potions ↓", "color": "red" },
+        { "key": "isBagFull", "label": "Bag Full", "color": "orange" },
+        { "key": "isSellableExist", "label": "Sellable?", "color": "yellow" },
+        { "key": "isConsignmentGoldToCollect", "label": "Gold Ready", "color": "yellow" },
+        { "key": "isAffordable", "label": "Can Afford?", "color": "green" },
+        { "key": "isDungeonReady", "label": "Dungeon Goal", "color": "purple" },
+        { "key": "isGrindingReady", "label": "Grind Goal", "color": "purple" },
+        { "key": "isMonsterDefeated", "label": "Defeated", "color": "gray" },
+        { "key": "actionRecoverComplete", "label": "Recovered", "color": "teal" },
+        { "key": "actionSellComplete", "label": "Sold/Posted", "color": "teal" },
+        { "key": "actionBuyComplete", "label": "Pots Bought", "color": "teal" },
+        { "key": "actionDungeonStartComplete", "label": "Dungeon Start", "color": "teal" },
+        { "key": "arrivedAtConsignment", "label": "Arrived NPC", "color": "cyan" },
+        { "key": "arrivedAtDungeon", "label": "Arrived Dungeon", "color": "cyan" },
+        { "key": "arrivedAtAttack", "label": "Arrived Attack", "color": "cyan" },
+        { "key": "isSmallStacksToSell", "label": "Small Stacks", "color": "gray" },
+        { "key": "isPotionsAvailable", "label": "Pots Avail?", "color": "gray" },
+        { "key": "isDungeonComplete", "label": "Dungeon End", "color": "gray" }
+      ],
+      "logic": {
+        "S_IDLE": [
+          {
+            "if": "bot.previous_goal_location !== 'None'",
+            "actions": ["exec:setDestinationFromPreviousGoal", "exec:clearPreviousGoal"],
+            "transitionTo": "S_NAVIGATE"
+          },
+          { "if": "isHpMpLow", "transitionTo": "S_RECOVER" },
+          {
+            "if": "isPotionsLow && (isGrindingReady || isDungeonReady)",
+            "actions": ["exec:setPreviousGoal", "exec:setDestination('Consignment NPC')"],
+            "transitionTo": "S_NAVIGATE"
+          },
+          {
+            "if": "isBagFull",
+            "actions": ["exec:setPreviousGoal"],
+            "transitionTo": "S_BAGFULL"
+          },
+          {
+            "if": "isDungeonReady && bot.navigation_destination !== 'Shadowmere Dungeon'",
+            "actions": ["exec:setDestination('Shadowmere Dungeon')"],
+            "transitionTo": "S_NAVIGATE"
+          },
+          { "if": "isDungeonReady", "transitionTo": "S_STARTDUNGEON" },
+          {
+            "if": "isGrindingReady && bot.navigation_destination !== 'Grinding Field'",
+            "actions": ["exec:setDestination('Grinding Field')"],
+            "transitionTo": "S_NAVIGATE"
+          },
+          { "if": "isGrindingReady", "transitionTo": "S_ATTACK" },
+          { "if": "bot.navigation_destination !== 'None'", "transitionTo": "S_NAVIGATE" },
+          {
+            "if": "true",
+            "actions": ["log:Waiting for conditions."],
+            "transitionTo": "S_IDLE"
+          }
+        ],
+        "S_RECOVER": [
+          {
+            "if": "bot.inDungeonInstance && isDungeonComplete",
+            "actions": ["exec:setDungeonStatus(false)", "exec:resetTrigger('isDungeonComplete')"],
+            "transitionTo": "S_IDLE"
+          },
+          {
+            "if": "actionRecoverComplete",
+            "actions": ["exec:resetTrigger('isHpMpLow')", "exec:resetTrigger('actionRecoverComplete')"],
+            "transitionTo": "S_IDLE"
+          },
+          {
+            "if": "isPotionsLow && !bot.inDungeonInstance",
+            "actions": ["exec:setPreviousGoal", "exec:setDestination('Consignment NPC')"],
+            "transitionTo": "S_NAVIGATE"
+          },
+          {
+            "if": "true",
+            "actions": ["log:Using potions/abilities to recover."],
+            "transitionTo": "S_RECOVER"
+          }
+        ],
+        "S_BAGFULL": [
+          {
+            "if": "isSellableExist || isSmallStacksToSell",
+            "actions": ["log:Clearing junk resources.", "exec:resetTrigger('isBagFull')", "exec:setDestination('Consignment NPC')"],
+            "transitionTo": "S_NAVIGATE"
+          },
+          {
+            "if": "true",
+            "actions": ["log:Clearing junk resources.", "exec:resetTrigger('isBagFull')"],
+            "transitionTo": "S_IDLE"
+          }
+        ],
+        "S_SELLCONSIGNMENT": [
+          {
+            "if": "actionSellComplete",
+            "actions": ["exec:resetTrigger('actionSellComplete')", "exec:clearDestination"],
+            "transitionTo": "S_SELLCONSIGNMENT_DECIDE"
+          },
+          {
+            "if": "true",
+            "actions": ["exec:collectGold", "exec:postItems(false)"],
+            "transitionTo": "S_SELLCONSIGNMENT"
+          }
+        ],
+        "S_SELLCONSIGNMENT_DECIDE": [
+          { "if": "isPotionsLow", "transitionTo": "S_BUY_POTIONS" },
+          { "if": "true", "transitionTo": "S_IDLE" }
+        ],
+        "S_NAVIGATE": [
+          {
+            "if": "isHpMpLow && bot.navigation_destination !== 'Consignment NPC'",
+            "transitionTo": "S_RECOVER"
+          },
+          {
+            "if": "bot.navigation_destination === 'Consignment NPC' && arrivedAtConsignment",
+            "actions": ["exec:resetTrigger('arrivedAtConsignment')"],
+            "transitionTo": "S_NAVIGATE_DECIDE_AT_NPC"
+          },
+          {
+            "if": "bot.navigation_destination === 'Shadowmere Dungeon' && arrivedAtDungeon",
+            "actions": ["exec:resetTrigger('arrivedAtDungeon')"],
+            "transitionTo": "S_STARTDUNGEON"
+          },
+          {
+            "if": "bot.navigation_destination === 'Grinding Field' && arrivedAtAttack",
+            "actions": ["exec:resetTrigger('arrivedAtAttack')"],
+            "transitionTo": "S_ATTACK"
+          },
+          {
+            "if": "true",
+            "actions": ["exec:move"],
+            "transitionTo": "S_NAVIGATE"
+          }
+        ],
+        "S_NAVIGATE_DECIDE_AT_NPC": [
+          { "if": "isPotionsLow", "transitionTo": "S_BUY_POTIONS" },
+          { "if": "true", "transitionTo": "S_SELLCONSIGNMENT" }
+        ],
+        "S_BUY_POTIONS": [
+          {
+            "if": "actionBuyComplete",
+            "actions": ["exec:resetTrigger('actionBuyComplete')", "exec:clearDestination"],
+            "transitionTo": "S_IDLE"
+          },
+          {
+            "if": "!isPotionsAvailable || !isAffordable",
+            "actions": ["log:Checking market for best potion price."],
+            "transitionTo": "S_MARKET_WAIT"
+          },
+          {
+            "if": "true",
+            "actions": ["log:Checking market for best potion price.", "log:Buying 1 stack of potions.", "exec:resetTrigger('isPotionsLow')"],
+            "transitionTo": "S_BUY_POTIONS"
+          }
+        ],
+        "S_MARKET_WAIT": [
+          {
+            "if": "isPotionsLow && !isConsignmentGoldToCollect && !isSmallStacksToSell && !isAffordable",
+            "transitionTo": "S_EXIT"
+          },
+          {
+            "if": "isConsignmentGoldToCollect",
+            "actions": ["exec:collectGold"],
+            "transitionTo": "S_MARKET_WAIT_DECIDE"
+          },
+          {
+            "if": "isSmallStacksToSell",
+            "actions": ["exec:postItems(true)"],
+            "transitionTo": "S_MARKET_WAIT"
+          },
+          {
+            "if": "true",
+            "actions": ["log:Market Wait Active: Waiting for sales."],
+            "transitionTo": "S_MARKET_WAIT"
+          }
+        ],
+        "S_MARKET_WAIT_DECIDE": [
+          { "if": "isPotionsLow", "transitionTo": "S_BUY_POTIONS" },
+          { "if": "true", "transitionTo": "S_IDLE" }
+        ],
+        "S_STARTDUNGEON": [
+          {
+            "if": "actionDungeonStartComplete",
+            "actions": ["exec:resetTrigger('actionDungeonStartComplete')", "exec:clearDestination"],
+            "transitionTo": "S_ATTACK"
+          },
+          { "if": "isHpMpLow", "transitionTo": "S_RECOVER" },
+          {
+            "if": "true",
+            "actions": ["log:Entering dungeon instance.", "exec:setDungeonStatus(true)"],
+            "transitionTo": "S_STARTDUNGEON"
+          }
+        ],
+        "S_ATTACK": [
+          {
+            "if": "bot.inDungeonInstance && isDungeonComplete",
+            "actions": ["exec:setDungeonStatus(false)", "exec:resetTrigger('isDungeonComplete')"],
+            "transitionTo": "S_IDLE"
+          },
+          { "if": "isHpMpLow", "transitionTo": "S_RECOVER" },
+          {
+            "if": "isMonsterDefeated",
+            "actions": ["exec:resetTrigger('isMonsterDefeated')"],
+            "transitionTo": "S_ATTACK_DECIDE"
+          },
+          {
+            "if": "true",
+            "actions": ["log:Executing combat rotation."],
+            "transitionTo": "S_ATTACK"
+          }
+        ],
+        "S_ATTACK_DECIDE": [
+          { "if": "bot.inDungeonInstance", "transitionTo": "S_ATTACK" },
+          { "if": "true", "transitionTo": "S_IDLE" }
+        ],
+        "S_EXIT": [
+          {
+            "if": "true",
+            "actions": ["log:BOT TERMINATED: Broke and unsafe to continue."],
+            "transitionTo": "S_EXIT"
+          }
+        ]
+      }
+    };
+
+    const defaultScenarios = {
+      "scenarios": [
+        {
+          "name": "1. Full Grinding Loop",
+          "description": "Finish Kill before Bag interrupt.",
+          "initialState": "S_IDLE",
+          "initialDungeon": false,
+          "initialConditions": {
+            "isGrindingReady": true,
+            "isPotionsLow": false,
+            "isAffordable": true,
+            "isSellableExist": false
+          },
+          "script": [
+            { "cycle": 4, "set": { "arrivedAtAttack": true } },
+            { "cycle": 6, "set": { "isMonsterDefeated": true } },
+            { "cycle": 8, "set": { "isHpMpLow": true, "isMonsterDefeated": false } },
+            { "cycle": 11, "set": { "actionRecoverComplete": true } },
+            { "cycle": 13, "set": { "isMonsterDefeated": false, "isBagFull": true, "isSellableExist": true } },
+            { "cycle": 15, "set": { "isMonsterDefeated": true } },
+            { "cycle": 20, "set": { "arrivedAtConsignment": true } },
+            { "cycle": 23, "set": { "actionSellComplete": true } },
+            { "cycle": 27, "set": { "arrivedAtAttack": true } },
+            { "cycle": 28, "log": "*** SCENARIO COMPLETE: Finish-Kill validated. ***" }
+          ]
+        },
+        {
+          "name": "2. Goal Save & Resupply Retreat",
+          "description": "PotionsLow -> Goal Save -> Buy Potions -> Goal Resume.",
+          "initialState": "S_IDLE",
+          "initialDungeon": false,
+          "initialConditions": {
+            "isDungeonReady": true,
+            "isPotionsLow": true,
+            "isAffordable": true,
+            "isPotionsAvailable": true,
+            "arrivedAtDungeon": false
+          },
+          "script": [
+            { "cycle": 4, "set": { "arrivedAtConsignment": true } },
+            { "cycle": 7, "set": { "actionBuyComplete": true } },
+            { "cycle": 11, "set": { "arrivedAtDungeon": true } },
+            { "cycle": 14, "set": { "actionDungeonStartComplete": true } },
+            { "cycle": 15, "log": "*** SCENARIO COMPLETE: Proactive retreat validated. ***" }
+          ]
+        },
+        {
+          "name": "3. Market Crisis & S_EXIT",
+          "description": "Broke -> MARKET_WAIT -> Sell -> Fail Recovery -> Final EXIT.",
+          "initialState": "S_IDLE",
+          "initialDungeon": false,
+          "initialConditions": {
+            "isGrindingReady": true,
+            "isPotionsLow": true,
+            "isAffordable": false,
+            "isPotionsAvailable": true,
+            "isSmallStacksToSell": true
+          },
+          "script": [
+            { "cycle": 4, "set": { "arrivedAtConsignment": true } },
+            { "cycle": 7, "set": { "isConsignmentGoldToCollect": true } },
+            { "cycle": 10, "set": { "actionBuyComplete": true } },
+            { "cycle": 14, "set": { "arrivedAtAttack": true } },
+            { "cycle": 15, "set": { "isHpMpLow": true } },
+            { "cycle": 17, "set": { "isPotionsLow": true, "actionRecoverComplete": false } },
+            { "cycle": 20, "set": { "arrivedAtConsignment": true } },
+            { "cycle": 22, "set": { "isConsignmentGoldToCollect": false, "isSmallStacksToSell": false, "isAffordable": false } },
+            { "cycle": 24, "log": "*** SCENARIO COMPLETE: Absolute failure (S_EXIT) validated. ***" }
+          ]
+        }
+      ]
+    };
 
     // --- 3. CORE CLASSES & LOGIC ---
     class DynamicBot { constructor(a,b,c){this.profile=a;this.currentState=b;this.navigation_destination="None";this.inDungeonInstance=c;this.previous_goal_location="None";log(`*** Bot Initialized. State: ${this.currentState} ***`)}run_cycle(){scenarioManager&&scenarioManager.applyScriptEvents();if("S_EXIT"===this.currentState)return log("*** BOT STOPPED ***"),void stopAutoCycle();const a=this.profile.logic[this.currentState];if(!a)return log(`ERROR: No logic for state '${this.currentState}'.`),void stopAutoCycle();for(const b of a){let c=!1;try{const d=new Function("triggers","bot",`with(triggers){return ${b.if}}`);c=d(simConditions,this)}catch(d){return log(`ERROR in condition: "${b.if}" - ${d.message}`),void stopAutoCycle()}if(c){b.actions&&b.actions.forEach(a=>this.executeAction(a));if(this.currentState!==b.transitionTo)log(`-> TRANSITION: ${this.currentState} -> ${b.transitionTo}`),this.currentState=b.transitionTo;break}}this.updateUI();cycleCount++}executeAction(a){let b=a,c=null;a.includes("(")?(c=a.substring(a.indexOf("(")+1,a.length-1).replace(/['"]/g,""),b=a.substring(0,a.indexOf("("))):a.startsWith("log:")&&(b="log",c=a.substring(4));switch(b){case"log":log(`  -> ACTION: ${c}`);break;case"exec:move":log(`  -> ACTION: Moving to ${this.navigation_destination}.`);break;case"exec:setDestination":this.navigation_destination=c;break;case"exec:clearDestination":this.navigation_destination="None",log("  -> ACTION: Dest cleared.");break;case"exec:setDungeonStatus":this.inDungeonInstance="true"===c;break;case"exec:resetTrigger":void 0!==simConditions[c]&&(simConditions[c]=!1);break;case"exec:setPreviousGoal":this.previous_goal_location=simConditions.isDungeonReady?"Shadowmere Dungeon":"Grinding Field";break;case"exec:setDestinationFromPreviousGoal":this.navigation_destination=this.previous_goal_location;break;case"exec:clearPreviousGoal":this.previous_goal_location="None";break;case"exec:collectGold":log("  -> ACTION: Collecting gold."),simConditions.isConsignmentGoldToCollect=!1,simConditions.isAffordable=!0;break;case"exec:postItems":log(`  -> ACTION: Posting items (small stacks: ${c}).`),"true"===c?simConditions.isSmallStacksToSell=!1:simConditions.isSellableExist=!1;break;default:log(`  -> UNKNOWN ACTION: ${a}`)}}updateUI(){const a=this.profile.states.find(a=>a.key===this.currentState)?.label||this.currentState;ui.stateDisplay.textContent=a.toUpperCase();ui.destDisplay.textContent=this.navigation_destination;ui.dungeonModeDisplay.textContent=this.inDungeonInstance?"ON":"OFF";ui.dungeonModeDisplay.className=`header-value ${this.inDungeonInstance?"text-green-400":"text-red-400"}`;ui.previousGoalDisplay.textContent=this.previous_goal_location}}

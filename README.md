@@ -31,15 +31,47 @@ Visit the live application: [State Machine Logic Tester](https://your-username.g
 
 ### Configuration
 - Click the ⚙️ settings button to access configuration
-- **Logic Profile Tab**: Define states, triggers, and transition logic
-- **Scenarios Tab**: Create automated test scenarios
-- **Display Triggers Tab**: Select which triggers to show on the main interface
+- **Logic Profile Tab**: Define states, triggers, and transition logic in JSON format
+- **Scenarios Tab**: Create automated test scenarios with scripted events
+- **Display Triggers Tab**: Select which triggers to show on the main interface (up to 20)
 
 ### Testing Scenarios
 The application includes several pre-built scenarios:
 1. **Full Grinding Loop**: Tests complete combat and inventory management cycle
 2. **Goal Save & Resupply Retreat**: Validates proactive resource management
 3. **Market Crisis & S_EXIT**: Tests failure recovery and termination conditions
+
+### Creating Custom Profiles
+You can create your own bot logic profiles using the standardized JSON format:
+
+```json
+{
+  "profileName": "My Custom Bot",
+  "initialState": "S_IDLE",
+  "states": [
+    { "key": "S_IDLE", "label": "Idle" },
+    { "key": "S_WORK", "label": "Working" }
+  ],
+  "triggers": [
+    { "key": "isReady", "label": "Ready", "color": "green" },
+    { "key": "needsRest", "label": "Tired", "color": "red" }
+  ],
+  "logic": {
+    "S_IDLE": [
+      { "if": "isReady", "transitionTo": "S_WORK" },
+      { "if": "true", "actions": ["log:Waiting..."], "transitionTo": "S_IDLE" }
+    ],
+    "S_WORK": [
+      { "if": "needsRest", "transitionTo": "S_IDLE" },
+      { "if": "true", "actions": ["log:Working hard!"], "transitionTo": "S_WORK" }
+    ]
+  }
+}
+```
+
+### Documentation
+- 📖 [Profile Format Guide](docs/profile-format.md) - Complete specification for creating bot logic profiles
+- 📋 [Scenario Format Guide](docs/scenario-format.md) - How to create automated test scenarios
 
 ## 🔧 Development
 
