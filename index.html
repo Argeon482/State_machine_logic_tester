@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>State Machine Logic Tester</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --trigger-display-limit: 20; }
+        body { font-family: 'Inter', sans-serif; background-color: #0d1117; color: #e5e7eb; touch-action: manipulation; height: 100vh; overflow-y: hidden; }
+        .main-content { display: flex; flex-direction: column; max-width: 5xl; margin: auto; padding: 0.5rem; height: 100%; gap: 0.5rem; }
+        .ui-card { @apply bg-gray-800 p-2 rounded-xl shadow-lg border border-gray-700; }
+        .btn { @apply p-2 rounded-lg transition duration-150 ease-in-out font-semibold shadow-md active:shadow-sm active:scale-98 text-xs text-center; }
+        .status-indicator { @apply h-2 w-2 rounded-full inline-block mr-1 flex-shrink-0; }
+        #log-console-container { flex-grow: 1; display: flex; flex-direction: column; min-height: 150px; }
+        #log-container { background-color: #000000; border: 2px solid #1f2937; box-shadow: 0 0 20px rgba(52, 211, 153, 0.2); padding: 0.5rem; border-radius: 0.5rem; overflow-y: scroll; flex-grow: 1; min-height: 100px; }
+        #bot-log { color: #4CAF50; white-space: pre-wrap; font-family: 'Consolas', 'Monaco', 'monospace'; font-size: 10px; }
+        .header-label { @apply text-[9px] text-gray-400 font-medium; }
+        .header-value { @apply font-mono text-xs font-bold whitespace-nowrap overflow-hidden text-ellipsis; }
+        .trigger-label { @apply font-medium cursor-pointer flex items-center p-[2px] rounded transition duration-100 ease-in-out whitespace-nowrap overflow-hidden; font-size: 11px; }
+        .status-and-triggers { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+        .triggers-container { flex-grow: 1; min-width: 60%; }
+        #settings-overlay { display: none; }
+        .tab-btn { @apply px-4 py-2 text-sm font-medium text-gray-400 border-b-2 border-transparent hover:text-gray-200 hover:border-gray-500; }
+        .tab-btn.active { @apply text-indigo-400 border-indigo-400; }
+        .tab-content { @apply h-full flex flex-col; }
+        .hidden { display: none; }
+        #trigger-checklist-container { @apply flex flex-col space-y-2 p-3 bg-black/50 rounded-lg overflow-y-auto; }
+        .trigger-checkbox-label { @apply flex items-center gap-3 p-2.5 rounded-md hover:bg-gray-700 cursor-pointer; }
+    </style>
+</head>
+<body>
+    <!-- SETTINGS MODAL -->
+    <div id="settings-overlay" class="fixed inset-0 bg-black bg-opacity-80 z-40 flex items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col p-4 gap-4">
+            <div class="flex justify-between items-center flex-shrink-0 border-b border-gray-700 pb-3">
+                <h2 class="text-xl font-bold text-indigo-400">Configuration</h2>
+                <button id="close-settings-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="flex-shrink-0 border-b border-gray-700">
+                <nav class="-mb-px flex space-x-6">
+                    <button id="profile-tab-btn" class="tab-btn active">Logic Profile</button>
+                    <button id="scenarios-tab-btn" class="tab-btn">Scenarios</button>
+                    <button id="triggers-tab-btn" class="tab-btn">Display Triggers</button>
+                </nav>
+            </div>
+            <div class="flex-grow min-h-0">
+                <div id="profile-tab-content" class="tab-content">
+                    <textarea id="profile-textarea" class="w-full flex-grow bg-black text-gray-300 font-mono text-xs p-2 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                    <div id="json-error-msg-profile" class="text-red-400 text-xs mt-1 h-4 flex-shrink-0"></div>
+                </div>
+                <div id="scenarios-tab-content" class="tab-content hidden">
+                    <textarea id="scenarios-textarea" class="w-full flex-grow bg-black text-gray-300 font-mono text-xs p-2 rounded-lg border border-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                    <div id="json-error-msg-scenarios" class="text-red-400 text-xs mt-1 h-4 flex-shrink-0"></div>
+                </div>
+                 <div id="triggers-tab-content" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-2 flex-shrink-0">
+                        <p class="text-sm text-gray-400">Select up to 20 triggers to display on the main screen.</p>
+                        <p id="trigger-select-counter" class="text-sm font-mono font-bold text-indigo-300">0 / 20</p>
+                    </div>
+                    <div id="trigger-checklist-container" class="flex-grow"></div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-2 flex-shrink-0">
+                <button id="cancel-settings-btn" class="btn bg-gray-600 hover:bg-gray-700 text-white">Cancel</button>
+                <button id="save-settings-btn" class="btn bg-green-600 hover:bg-green-700 text-white">Save and Reload</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <header class="text-center flex-shrink-0 mt-2 flex justify-between items-center">
+             <div></div>
+            <div>
+                 <h1 class="text-xl font-extrabold text-green-400 tracking-wide">STATE MACHINE LOGIC TESTER</h1>
+                 <p id="profile-name-display" class="text-gray-400 text-xs">Default Profile</p>
+            </div>
+            <button id="open-settings-btn" class="btn bg-gray-700 hover:bg-gray-600 text-white text-lg p-2 leading-none">⚙️</button>
+        </header>
+
+        <div class="ui-card bg-indigo-900 border-indigo-700 shadow-xl shadow-indigo-800/50 p-1.5 flex-shrink-0">
+            <div class="status-and-triggers">
+                <div class="flex flex-col space-y-0.5 min-w-[35%]">
+                    <h2 class="text-sm font-bold text-indigo-300 border-b border-indigo-700 pb-[1px] mb-0.5">STATUS</h2>
+                    <div class="flex items-center space-x-2"><p class="header-label w-10">State:</p><p id="current-state" class="header-value text-green-400">IDLE</p></div>
+                    <div class="flex items-center space-x-2"><p class="header-label w-10">Dest:</p><p id="current-dest" class="header-value text-yellow-300">None</p></div>
+                    <div class="flex items-center space-x-2"><p class="header-label w-10">Mode:</p><div id="dungeon-mode" class="header-value text-red-400">OFF</div></div>
+                    <div class="flex items-center space-x-2"><p class="header-label w-10">Goal:</p><p id="previous-goal" class="header-value text-gray-300">None</p></div>
+                </div>
+                <div class="flex flex-col space-y-0.5 triggers-container">
+                    <div class="flex justify-between items-center border-b border-indigo-700 pb-[1px] mb-0.5">
+                        <h2 class="text-sm font-bold text-indigo-300">TRIGGERS (Tap to Toggle)</h2>
+                    </div>
+                    <div id="compact-trigger-lights" class="grid grid-cols-4 gap-x-0.5 gap-y-0.5"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="ui-card flex-shrink-0">
+            <h2 class="text-sm font-bold text-green-400 mb-1">CONTROL PANEL</h2>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <select id="scenario-select" class="flex-grow p-2 border border-gray-600 rounded-lg text-gray-100 bg-gray-700 text-xs focus:ring-1 focus:ring-indigo-500"></select>
+                <div class="flex w-full sm:w-auto min-w-[150px]">
+                    <button id="main-action-btn" class="btn flex-grow-[3] bg-indigo-500 text-white hover:bg-indigo-600 rounded-r-none border-r border-indigo-500/50">RUN</button>
+                    <button id="reset-btn-segmented" class="btn flex-grow-[1] bg-red-600 text-white hover:bg-red-700 rounded-l-none border-l border-red-700">RESET</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="log-console-container" class="ui-card flex-grow p-2 min-h-0">
+            <h2 class="text-sm font-bold text-green-400 mb-2 flex-shrink-0">OUTPUT CONSOLE</h2>
+            <div class="flex items-center gap-2 mb-2 p-1 bg-gray-700 rounded-lg flex-shrink-0">
+                <label for="delay-input" class="text-gray-300 text-[10px] font-medium whitespace-nowrap">Delay(ms):</label>
+                <input type="number" id="delay-input" value="1000" min="100" class="p-1 border border-gray-600 rounded-md w-16 text-center bg-gray-800 text-white text-xs">
+                <button id="copy-log-btn" class="flex-1 btn bg-gray-600 text-white hover:bg-gray-700">COPY LOG</button>
+            </div>
+            <div id="log-container"><pre id="bot-log"></pre></div>
+        </div>
+    </div>
+
+    <script>
+    // --- 1. GLOBAL & UI ELEMENT DEFINITIONS ---
+    let simConditions = {}, bot, cycleCount = 1, autoCycleInterval = null, scenarioManager = null, activeProfile = null, activeScenarios = null, displayedTriggers = [];
+    const TRIGGER_DISPLAY_LIMIT = 20;
+    const ui = {
+        logElement: document.getElementById('bot-log'), logContainer: document.getElementById('log-container'), stateDisplay: document.getElementById('current-state'), destDisplay: document.getElementById('current-dest'), dungeonModeDisplay: document.getElementById('dungeon-mode'), previousGoalDisplay: document.getElementById('previous-goal'), triggerLightsDiv: document.getElementById('compact-trigger-lights'), scenarioSelect: document.getElementById('scenario-select'), mainActionBtn: document.getElementById('main-action-btn'), resetBtnSegmented: document.getElementById('reset-btn-segmented'), copyLogBtn: document.getElementById('copy-log-btn'), delayInput: document.getElementById('delay-input'), profileNameDisplay: document.getElementById('profile-name-display'), settingsOverlay: document.getElementById('settings-overlay'), profileTextarea: document.getElementById('profile-textarea'), scenariosTextarea: document.getElementById('scenarios-textarea'), jsonErrorMsgProfile: document.getElementById('json-error-msg-profile'), jsonErrorMsgScenarios: document.getElementById('json-error-msg-scenarios'), profileTabBtn: document.getElementById('profile-tab-btn'), scenariosTabBtn: document.getElementById('scenarios-tab-btn'), triggersTabBtn: document.getElementById('triggers-tab-btn'), profileTabContent: document.getElementById('profile-tab-content'), scenariosTabContent: document.getElementById('scenarios-tab-content'), triggersTabContent: document.getElementById('triggers-tab-content'), triggerChecklistContainer: document.getElementById('trigger-checklist-container'), triggerSelectCounter: document.getElementById('trigger-select-counter')
+    };
+
+    // --- 2. DEFAULT DATA & PROFILES ---
+    const defaultBotProfile = {"profileName":"Original GameBot Logic","initialState":"S_IDLE","states":[{"key":"S_IDLE","label":"Idle"},{"key":"S_BAGFULL","label":"Bag Full"},{"key":"S_SELLCONSIGNMENT","label":"Selling"},{"key":"S_NAVIGATE","label":"Navigating"},{"key":"S_STARTDUNGEON","label":"Start Dungeon"},{"key":"S_ATTACK","label":"Attacking"},{"key":"S_RECOVER","label":"Recovering"},{"key":"S_BUY_POTIONS","label":"Buy Potions"},{"key":"S_MARKET_WAIT","label":"Market Wait"},{"key":"S_EXIT","label":"Terminated"}],"triggers":[{"key":"isHpMpLow","label":"HP/MP ↓","color":"red"},{"key":"isPotionsLow","label":"Potions ↓","color":"red"},{"key":"isBagFull","label":"Bag Full","color":"orange"},{"key":"isSellableExist","label":"Sellable?","color":"yellow"},{"key":"isConsignmentGoldToCollect","label":"Gold Ready","color":"yellow"},{"key":"isAffordable","label":"Can Afford?","color":"green"},{"key":"isDungeonReady","label":"Dungeon Goal","color":"purple"},{"key":"isGrindingReady","label":"Grind Goal","color":"purple"},{"key":"isMonsterDefeated","label":"Defeated","color":"gray"},{"key":"actionRecoverComplete","label":"Recovered","color":"teal"},{"key":"actionSellComplete","label":"Sold/Posted","color":"teal"},{"key":"actionBuyComplete","label":"Pots Bought","color":"teal"},{"key":"actionDungeonStartComplete","label":"Dungeon Start","color":"teal"},{"key":"arrivedAtConsignment","label":"Arrived NPC","color":"cyan"},{"key":"arrivedAtDungeon","label":"Arrived Dungeon","color":"cyan"},{"key":"arrivedAtAttack","label":"Arrived Attack","color":"cyan"},{"key":"isSmallStacksToSell","label":"Small Stacks","color":"gray"},{"key":"isPotionsAvailable","label":"Pots Avail?","color":"gray"},{"key":"isDungeonComplete","label":"Dungeon End","color":"gray"}],"logic":{"S_IDLE":[{"if":"bot.previous_goal_location !== 'None'","actions":["exec:setDestinationFromPreviousGoal","exec:clearPreviousGoal"],"transitionTo":"S_NAVIGATE"},{"if":"isHpMpLow","transitionTo":"S_RECOVER"},{"if":"isPotionsLow && (isGrindingReady || isDungeonReady)","actions":["exec:setPreviousGoal","exec:setDestination('Consignment NPC')"],"transitionTo":"S_NAVIGATE"},{"if":"isBagFull","actions":["exec:setPreviousGoal"],"transitionTo":"S_BAGFULL"},{"if":"isDungeonReady && bot.navigation_destination !== 'Shadowmere Dungeon'","actions":["exec:setDestination('Shadowmere Dungeon')"],"transitionTo":"S_NAVIGATE"},{"if":"isDungeonReady","transitionTo":"S_STARTDUNGEON"},{"if":"isGrindingReady && bot.navigation_destination !== 'Grinding Field'","actions":["exec:setDestination('Grinding Field')"],"transitionTo":"S_NAVIGATE"},{"if":"isGrindingReady","transitionTo":"S_ATTACK"},{"if":"bot.navigation_destination !== 'None'","transitionTo":"S_NAVIGATE"},{"if":"true","actions":["log:Waiting for conditions."],"transitionTo":"S_IDLE"}],"S_RECOVER":[{"if":"bot.inDungeonInstance && isDungeonComplete","actions":["exec:setDungeonStatus(false)","exec:resetTrigger('isDungeonComplete')"],"transitionTo":"S_IDLE"},{"if":"actionRecoverComplete","actions":["exec:resetTrigger('isHpMpLow')","exec:resetTrigger('actionRecoverComplete')"],"transitionTo":"S_IDLE"},{"if":"isPotionsLow && !bot.inDungeonInstance","actions":["exec:setPreviousGoal","exec:setDestination('Consignment NPC')"],"transitionTo":"S_NAVIGATE"},{"if":"true","actions":["log:Using potions/abilities to recover."],"transitionTo":"S_RECOVER"}],"S_BAGFULL":[{"if":"isSellableExist || isSmallStacksToSell","actions":["log:Clearing junk resources.","exec:resetTrigger('isBagFull')","exec:setDestination('Consignment NPC')"],"transitionTo":"S_NAVIGATE"},{"if":"true","actions":["log:Clearing junk resources.","exec:resetTrigger('isBagFull')"],"transitionTo":"S_IDLE"}],"S_SELLCONSIGNMENT":[{"if":"actionSellComplete","actions":["exec:resetTrigger('actionSellComplete')","exec:clearDestination"],"transitionTo":"S_SELLCONSIGNMENT_DECIDE"},{"if":"true","actions":["exec:collectGold","exec:postItems(false)"],"transitionTo":"S_SELLCONSIGNMENT"}],"S_SELLCONSIGNMENT_DECIDE":[{"if":"isPotionsLow","transitionTo":"S_BUY_POTIONS"},{"if":"true","transitionTo":"S_IDLE"}],"S_NAVIGATE":[{"if":"isHpMpLow && bot.navigation_destination !== 'Consignment NPC'","transitionTo":"S_RECOVER"},{"if":"bot.navigation_destination === 'Consignment NPC' && arrivedAtConsignment","actions":["exec:resetTrigger('arrivedAtConsignment')"],"transitionTo":"S_NAVIGATE_DECIDE_AT_NPC"},{"if":"bot.navigation_destination === 'Shadowmere Dungeon' && arrivedAtDungeon","actions":["exec:resetTrigger('arrivedAtDungeon')"],"transitionTo":"S_STARTDUNGEON"},{"if":"bot.navigation_destination === 'Grinding Field' && arrivedAtAttack","actions":["exec:resetTrigger('arrivedAtAttack')"],"transitionTo":"S_ATTACK"},{"if":"true","actions":["exec:move"],"transitionTo":"S_NAVIGATE"}],"S_NAVIGATE_DECIDE_AT_NPC":[{"if":"isPotionsLow","transitionTo":"S_BUY_POTIONS"},{"if":"true","transitionTo":"S_SELLCONSIGNMENT"}],"S_BUY_POTIONS":[{"if":"actionBuyComplete","actions":["exec:resetTrigger('actionBuyComplete')","exec:clearDestination"],"transitionTo":"S_IDLE"},{"if":"!isPotionsAvailable || !isAffordable","actions":["log:Checking market for best potion price."],"transitionTo":"S_MARKET_WAIT"},{"if":"true","actions":["log:Checking market for best potion price.","log:Buying 1 stack of potions.","exec:resetTrigger('isPotionsLow')"],"transitionTo":"S_BUY_POTIONS"}],"S_MARKET_WAIT":[{"if":"isPotionsLow && !isConsignmentGoldToCollect && !isSmallStacksToSell && !isAffordable","transitionTo":"S_EXIT"},{"if":"isConsignmentGoldToCollect","actions":["exec:collectGold"],"transitionTo":"S_MARKET_WAIT_DECIDE"},{"if":"isSmallStacksToSell","actions":["exec:postItems(true)"],"transitionTo":"S_MARKET_WAIT"},{"if":"true","actions":["log:Market Wait Active: Waiting for sales."],"transitionTo":"S_MARKET_WAIT"}],"S_MARKET_WAIT_DECIDE":[{"if":"isPotionsLow","transitionTo":"S_BUY_POTIONS"},{"if":"true","transitionTo":"S_IDLE"}],"S_STARTDUNGEON":[{"if":"actionDungeonStartComplete","actions":["exec:resetTrigger('actionDungeonStartComplete')","exec:clearDestination"],"transitionTo":"S_ATTACK"},{"if":"isHpMpLow","transitionTo":"S_RECOVER"},{"if":"true","actions":["log:Entering dungeon instance.","exec:setDungeonStatus(true)"],"transitionTo":"S_STARTDUNGEON"}],"S_ATTACK":[{"if":"bot.inDungeonInstance && isDungeonComplete","actions":["exec:setDungeonStatus(false)","exec:resetTrigger('isDungeonComplete')"],"transitionTo":"S_IDLE"},{"if":"isHpMpLow","transitionTo":"S_RECOVER"},{"if":"isMonsterDefeated","actions":["exec:resetTrigger('isMonsterDefeated')"],"transitionTo":"S_ATTACK_DECIDE"},{"if":"true","actions":["log:Executing combat rotation."],"transitionTo":"S_ATTACK"}],"S_ATTACK_DECIDE":[{"if":"bot.inDungeonInstance","transitionTo":"S_ATTACK"},{"if":"true","transitionTo":"S_IDLE"}],"S_EXIT":[{"if":"true","actions":["log:BOT TERMINATED: Broke and unsafe to continue."],"transitionTo":"S_EXIT"}]}};
+    const defaultScenarios = {"scenarios": [{"name": "1. Full Grinding Loop", "description": "Finish Kill before Bag interrupt.", "initialState": "S_IDLE", "initialDungeon": false, "initialConditions": {"isGrindingReady": true, "isPotionsLow": false, "isAffordable": true, "isSellableExist": false}, "script": [{"cycle": 4, "set": {"arrivedAtAttack": true}}, {"cycle": 6, "set": {"isMonsterDefeated": true}}, {"cycle": 8, "set": {"isHpMpLow": true, "isMonsterDefeated": false}}, {"cycle": 11, "set": {"actionRecoverComplete": true}}, {"cycle": 13, "set": {"isMonsterDefeated": false, "isBagFull": true, "isSellableExist": true}}, {"cycle": 15, "set": {"isMonsterDefeated": true}}, {"cycle": 20, "set": {"arrivedAtConsignment": true}}, {"cycle": 23, "set": {"actionSellComplete": true}}, {"cycle": 27, "set": {"arrivedAtAttack": true}}, {"cycle": 28, "log": "*** SCENARIO COMPLETE: Finish-Kill validated. ***"}]}, {"name": "2. Goal Save & Resupply Retreat", "description": "PotionsLow -> Goal Save -> Buy Potions -> Goal Resume.", "initialState": "S_IDLE", "initialDungeon": false, "initialConditions": {"isDungeonReady": true, "isPotionsLow": true, "isAffordable": true, "isPotionsAvailable": true, "arrivedAtDungeon": false}, "script": [{"cycle": 4, "set": {"arrivedAtConsignment": true}}, {"cycle": 7, "set": {"actionBuyComplete": true}}, {"cycle": 11, "set": {"arrivedAtDungeon": true}}, {"cycle": 14, "set": {"actionDungeonStartComplete": true}}, {"cycle": 15, "log": "*** SCENARIO COMPLETE: Proactive retreat validated. ***"}]}, {"name": "3. Market Crisis & S_EXIT", "description": "Broke -> MARKET_WAIT -> Sell -> Fail Recovery -> Final EXIT.", "initialState": "S_IDLE", "initialDungeon": false, "initialConditions": {"isGrindingReady": true, "isPotionsLow": true, "isAffordable": false, "isPotionsAvailable": true, "isSmallStacksToSell": true}, "script": [{"cycle": 4, "set": {"arrivedAtConsignment": true}}, {"cycle": 7, "set": {"isConsignmentGoldToCollect": true}}, {"cycle": 10, "set": {"actionBuyComplete": true}}, {"cycle": 14, "set": {"arrivedAtAttack": true}}, {"cycle": 15, "set": {"isHpMpLow": true}}, {"cycle": 17, "set": {"isPotionsLow": true, "actionRecoverComplete": false}}, {"cycle": 20, "set": {"arrivedAtConsignment": true}}, {"cycle": 22, "set": {"isConsignmentGoldToCollect": false, "isSmallStacksToSell": false, "isAffordable": false}}, {"cycle": 24, "log": "*** SCENARIO COMPLETE: Absolute failure (S_EXIT) validated. ***"}]}]};
+
+    // --- 3. CORE CLASSES & LOGIC ---
+    class DynamicBot { constructor(a,b,c){this.profile=a;this.currentState=b;this.navigation_destination="None";this.inDungeonInstance=c;this.previous_goal_location="None";log(`*** Bot Initialized. State: ${this.currentState} ***`)}run_cycle(){scenarioManager&&scenarioManager.applyScriptEvents();if("S_EXIT"===this.currentState)return log("*** BOT STOPPED ***"),void stopAutoCycle();const a=this.profile.logic[this.currentState];if(!a)return log(`ERROR: No logic for state '${this.currentState}'.`),void stopAutoCycle();for(const b of a){let c=!1;try{const d=new Function("triggers","bot",`with(triggers){return ${b.if}}`);c=d(simConditions,this)}catch(d){return log(`ERROR in condition: "${b.if}" - ${d.message}`),void stopAutoCycle()}if(c){b.actions&&b.actions.forEach(a=>this.executeAction(a));if(this.currentState!==b.transitionTo)log(`-> TRANSITION: ${this.currentState} -> ${b.transitionTo}`),this.currentState=b.transitionTo;break}}this.updateUI();cycleCount++}executeAction(a){let b=a,c=null;a.includes("(")?(c=a.substring(a.indexOf("(")+1,a.length-1).replace(/['"]/g,""),b=a.substring(0,a.indexOf("("))):a.startsWith("log:")&&(b="log",c=a.substring(4));switch(b){case"log":log(`  -> ACTION: ${c}`);break;case"exec:move":log(`  -> ACTION: Moving to ${this.navigation_destination}.`);break;case"exec:setDestination":this.navigation_destination=c;break;case"exec:clearDestination":this.navigation_destination="None",log("  -> ACTION: Dest cleared.");break;case"exec:setDungeonStatus":this.inDungeonInstance="true"===c;break;case"exec:resetTrigger":void 0!==simConditions[c]&&(simConditions[c]=!1);break;case"exec:setPreviousGoal":this.previous_goal_location=simConditions.isDungeonReady?"Shadowmere Dungeon":"Grinding Field";break;case"exec:setDestinationFromPreviousGoal":this.navigation_destination=this.previous_goal_location;break;case"exec:clearPreviousGoal":this.previous_goal_location="None";break;case"exec:collectGold":log("  -> ACTION: Collecting gold."),simConditions.isConsignmentGoldToCollect=!1,simConditions.isAffordable=!0;break;case"exec:postItems":log(`  -> ACTION: Posting items (small stacks: ${c}).`),"true"===c?simConditions.isSmallStacksToSell=!1:simConditions.isSellableExist=!1;break;default:log(`  -> UNKNOWN ACTION: ${a}`)}}updateUI(){const a=this.profile.states.find(a=>a.key===this.currentState)?.label||this.currentState;ui.stateDisplay.textContent=a.toUpperCase();ui.destDisplay.textContent=this.navigation_destination;ui.dungeonModeDisplay.textContent=this.inDungeonInstance?"ON":"OFF";ui.dungeonModeDisplay.className=`header-value ${this.inDungeonInstance?"text-green-400":"text-red-400"}`;ui.previousGoalDisplay.textContent=this.previous_goal_location}}
+    class ScenarioManager { constructor(a){this.scenario=a,this.scriptIndex=0}applyScriptEvents(){if(this.scenario&&this.scenario.script)for(;this.scriptIndex<this.scenario.script.length&&this.scenario.script[this.scriptIndex].cycle===cycleCount;){const a=this.scenario.script[this.scriptIndex];a.set?(Object.keys(a.set).forEach(b=>{simConditions[b]=a.set[b],log(`  * SCRIPT: Set '${b}' to ${simConditions[b]}`)}),renderControls()):a.log&&log(a.log),this.scriptIndex++}}}
+
+    // --- 4. UI & HELPER FUNCTIONS ---
+    function log(a){const b=(new Date).toLocaleTimeString("en-US",{hour12:!1}),c=a.replace(/-> TRANSITION:/g,'<span class="text-cyan-400">-> TRANSITION:</span>').replace(/-> ACTION:/g,'<span class="text-green-400">-> ACTION:</span>').replace(/\*\*\* (.*) \*\*\*/g,'<span class="text-yellow-400 font-bold">*** $1 ***</span>');ui.logElement.innerHTML+=`[${b} / C${cycleCount}] ${c}\n`,setTimeout(()=>{ui.logContainer.scrollTop=ui.logContainer.scrollHeight},0)}
+    function showCustomMessage(a,b="info"){let c=document.getElementById("custom-message-container");c||(c=document.createElement("div"),c.id="custom-message-container",c.className="fixed top-4 right-4 z-50 space-y-2",document.body.appendChild(c));const d=document.createElement("div"),e={success:"bg-green-500",error:"bg-red-600",info:"bg-indigo-500"};d.className=`${e[b]} text-white p-3 rounded-xl shadow-2xl transform transition duration-300 ease-out opacity-0 translate-x-full text-xs`,d.textContent=a,c.appendChild(d),setTimeout(()=>{d.classList.remove("opacity-0","translate-x-full"),d.classList.add("opacity-100","translate-x-0")},50),setTimeout(()=>{d.classList.add("opacity-0","translate-x-full"),setTimeout(()=>d.remove(),300)},3e3)}
+    function loadProfile(a){try{const b="string"==typeof a?JSON.parse(a):a;if(!b.states||!b.triggers||!b.logic)throw new Error("Profile requires: states, triggers, logic.");return activeProfile=b,localStorage.setItem("botLogicProfile",JSON.stringify(b)),!0}catch(b){return ui.jsonErrorMsgProfile.textContent=b.message,!1}}
+    function loadScenarios(a){try{const b="string"==typeof a?JSON.parse(a):a;if(!b.scenarios)throw new Error("Scenarios file requires a 'scenarios' array.");return activeScenarios=b,localStorage.setItem("botScenarios",JSON.stringify(b)),!0}catch(b){return ui.jsonErrorMsgScenarios.textContent=b.message,!1}}
+    function populateScenarioDropdown(){ui.scenarioSelect.innerHTML="";ui.scenarioSelect.add(new Option("--- Manual Single Cycle ---","manual"));ui.scenarioSelect.add(new Option("--- Continuous Manual Cycle ---","continuous"));activeScenarios.scenarios.forEach((a,b)=>ui.scenarioSelect.add(new Option(a.name,b)))}
+    function updateActionButtonText(a,b){a?(ui.mainActionBtn.textContent="STOP",ui.mainActionBtn.className=ui.mainActionBtn.className.replace(/bg-indigo-500 hover:bg-indigo-600/g,"bg-orange-500 hover:bg-orange-600")):(ui.mainActionBtn.className=ui.mainActionBtn.className.replace(/bg-orange-500 hover:bg-orange-600/g,"bg-indigo-500 hover:bg-indigo-600"),"manual"===b?ui.mainActionBtn.textContent="RUN CYCLE":"continuous"===b?ui.mainActionBtn.textContent="START CONTINUOUS":ui.mainActionBtn.textContent="LOAD & RUN")}
+    function toggleCondition(a){autoCycleInterval&&"continuous"!==ui.scenarioSelect.value?showCustomMessage("Cannot change triggers while a scenario is running.","error"):(simConditions[a]=!simConditions[a],log(`  * MANUAL TOGGLE: ${a}: ${simConditions[a]}`),renderControls())}
+    function copyLogToClipboard(){try{const a=ui.logElement.innerText,b=document.createElement("textarea");b.value=a,b.style.position="absolute",b.style.left="-9999px",document.body.appendChild(b),b.select(),document.execCommand("copy"),document.body.removeChild(b),showCustomMessage("Console log copied to clipboard!","success")}catch(a){console.error("Failed to copy log:",a),showCustomMessage("Failed to copy log.","error")}}
+    function renderControls(){const a=!!autoCycleInterval&&"continuous"!==ui.scenarioSelect.value;ui.triggerLightsDiv.innerHTML="";const b=new Set(displayedTriggers),c=displayedTriggers&&0<displayedTriggers.length?activeProfile.triggers.filter(a=>b.has(a.key)):activeProfile.triggers.slice(0,TRIGGER_DISPLAY_LIMIT);c.forEach(b=>{const c=document.createElement("div");c.className=`trigger-label ${simConditions[b.key]?"bg-indigo-800/70 text-white":"text-gray-400"} ${a?"":"hover:bg-indigo-700/50 active:scale-95"}`,a||(c.onclick=()=>toggleCondition(b.key));const d=document.createElement("span"),e={red:"bg-red-500",orange:"bg-orange-500",yellow:"bg-yellow-500",green:"bg-green-500",purple:"bg-purple-500",teal:"bg-teal-500",cyan:"bg-cyan-500",gray:"bg-gray-500"};d.className=`status-indicator ${simConditions[b.key]?e[b.color]||"bg-gray-500":"bg-gray-700"}`,c.appendChild(d),c.appendChild(document.createTextNode(b.label)),ui.triggerLightsDiv.appendChild(c)})}
+    function populateTriggerConfigTab(){ui.triggerChecklistContainer.innerHTML="",ui.triggerSelectCounter.textContent=`${displayedTriggers.length} / ${TRIGGER_DISPLAY_LIMIT}`,activeProfile.triggers.forEach(a=>{const b=document.createElement("label");b.className="trigger-checkbox-label";const c=document.createElement("input");c.type="checkbox",c.value=a.key,c.className="form-checkbox h-4 w-4 bg-gray-900 border-gray-600 rounded text-indigo-500 focus:ring-indigo-500",displayedTriggers.includes(a.key)&&(c.checked=!0),c.onchange=a=>handleTriggerSelection(a.target),b.appendChild(c),b.appendChild(document.createTextNode(a.label)),ui.triggerChecklistContainer.appendChild(b)})}
+    function handleTriggerSelection(a){a.checked?displayedTriggers.length>=TRIGGER_DISPLAY_LIMIT?(a.checked=!1,showCustomMessage(`You can only display up to ${TRIGGER_DISPLAY_LIMIT} triggers.`,"error")):displayedTriggers.push(a.value):displayedTriggers=displayedTriggers.filter(b=>b!==a.value),ui.triggerSelectCounter.textContent=`${displayedTriggers.length} / ${TRIGGER_DISPLAY_LIMIT}`}
+    
+    // --- 5. SIMULATION CONTROL ---
+    function stopAutoCycle(){autoCycleInterval&&(clearInterval(autoCycleInterval),autoCycleInterval=null,ui.scenarioSelect.disabled=!1,updateActionButtonText(!1,ui.scenarioSelect.value),log("*** AUTO CYCLE STOPPED MANUALLY ***"))}
+    function initializeSimulator(a,b,c=!0){stopAutoCycle(),simConditions={},activeProfile.triggers.forEach(a=>simConditions[a.key]=!1),cycleCount=1,c&&(ui.logElement.innerHTML=""),scenarioManager=null,bot=new DynamicBot(activeProfile,a||activeProfile.initialState,!!b),c&&log("--- SIMULATOR RESET ---"),bot.updateUI(),renderControls()}
+    function handleMainAction(){const a=ui.scenarioSelect.value;if(autoCycleInterval)return void stopAutoCycle();if("manual"===a)1===cycleCount&&initializeSimulator(null,null,!0),log("*** MANUAL SINGLE CYCLE EXECUTION ***"),bot.run_cycle();else{const b="continuous"!==a?activeScenarios.scenarios[parseInt(a)]:null;initializeSimulator(b?.initialState,b?.initialDungeon,!0),b?.initialConditions&&(Object.keys(b.initialConditions).forEach(a=>simConditions[a]=b.initialConditions[a]),log("*** Scenario initial conditions set ***"),renderControls()),scenarioManager=new ScenarioManager(b),log(`\n*** ${b?"SCENARIO LOADED":"MANUAL CONTINUOUS CYCLE"} - AUTO START ***\n`);let c=parseInt(ui.delayInput.value);autoCycleInterval=setInterval(()=>bot.run_cycle(),isNaN(c)||c<100?1e3:c),ui.scenarioSelect.disabled=!0,updateActionButtonText(!0,a)}}
+
+    // --- 6. EVENT LISTENERS & INITIAL SETUP ---
+    window.onload = () => {
+        loadProfile(localStorage.getItem('botLogicProfile') || defaultBotProfile);
+        loadScenarios(localStorage.getItem('botScenarios') || defaultScenarios);
+        const savedTriggers = localStorage.getItem('displayedTriggers');
+        if (savedTriggers) { displayedTriggers = JSON.parse(savedTriggers); } 
+        else { displayedTriggers = activeProfile.triggers.slice(0, TRIGGER_DISPLAY_LIMIT).map(t => t.key); }
+        populateScenarioDropdown();
+        initializeSimulator(null, null, true);
+        updateActionButtonText(false, 'manual');
+
+        const tabs = { profile: ui.profileTabBtn, scenarios: ui.scenariosTabBtn, triggers: ui.triggersTabBtn };
+        const contents = { profile: ui.profileTabContent, scenarios: ui.scenariosTabContent, triggers: ui.triggersTabContent };
+        const switchTab = (tabKey) => {
+            Object.keys(tabs).forEach(key => {
+                tabs[key].classList.toggle('active', key === tabKey);
+                contents[key].classList.toggle('hidden', key !== tabKey);
+                contents[key].classList.toggle('flex', key === tabKey && (key === 'profile' || key === 'scenarios'));
+            });
+             // Special handling for triggers tab
+            if (tabKey === 'triggers') {
+                contents.triggers.classList.remove('hidden');
+                contents.triggers.classList.add('flex');
+            }
+        };
+        ui.profileTabBtn.onclick = () => switchTab('profile');
+        ui.scenariosTabBtn.onclick = () => switchTab('scenarios');
+        ui.triggersTabBtn.onclick = () => switchTab('triggers');
+        
+        document.getElementById('open-settings-btn').onclick = () => { 
+            ui.profileTextarea.value = JSON.stringify(activeProfile, null, 2); 
+            ui.scenariosTextarea.value = JSON.stringify(activeScenarios, null, 2);
+            populateTriggerConfigTab();
+            ui.jsonErrorMsgProfile.textContent = ''; ui.jsonErrorMsgScenarios.textContent = ''; 
+            ui.settingsOverlay.style.display = 'flex';
+            switchTab('profile');
+        };
+        const closeSettings = () => ui.settingsOverlay.style.display = 'none';
+        document.getElementById('close-settings-btn').onclick = closeSettings;
+        document.getElementById('cancel-settings-btn').onclick = closeSettings;
+        document.getElementById('save-settings-btn').onclick = () => {
+            const profileOK = loadProfile(ui.profileTextarea.value); 
+            const scenariosOK = loadScenarios(ui.scenariosTextarea.value);
+            localStorage.setItem('displayedTriggers', JSON.stringify(displayedTriggers));
+            if (profileOK && scenariosOK) { 
+                showCustomMessage("Configuration saved!", "success"); 
+                closeSettings(); 
+                populateScenarioDropdown(); 
+                initializeSimulator(null, null, true); 
+            } else { 
+                showCustomMessage("Save failed. Check JSON.", "error"); 
+            }
+        };
+        
+        ui.mainActionBtn.onclick = handleMainAction;
+        ui.resetBtnSegmented.onclick = () => initializeSimulator(null, null, true);
+        ui.scenarioSelect.onchange = () => updateActionButtonText(false, ui.scenarioSelect.value);
+        ui.copyLogBtn.onclick = copyLogToClipboard;
+    };
+    </script>
+</body>
+</html>
